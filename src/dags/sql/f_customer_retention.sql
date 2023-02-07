@@ -6,11 +6,17 @@ WITH get_week_id AS (
 DELETE FROM mart.f_customer_retention fcr
 WHERE period_id = (SELECT MAX(week_of_year) FROM get_week_id);
 
-WITH by_weeks AS (
+WITH get_week_id AS (
+	SELECT dc.week_of_year
+	FROM mart.f_sales fs
+		LEFT JOIN mart.d_calendar dc ON fs.date_id = dc.date_id
+	WHERE dc.date_actual = '{{ds}}'
+), by_weeks AS (
 	SELECT customer_id, item_id, status, payment_amount, week_of_year,
 		ROW_NUMBER() OVER(PARTITION BY week_of_year) row_num
 	FROM mart.f_sales fs
 		LEFT JOIN mart.d_calendar dc ON fs.date_id = dc.date_id
+	WHERE week_of_year = (SELECT MAX(week_of_year) FROM get_week_id)
 ), counter AS (
 	SELECT count(customer_id) AS count_c, customer_id, item_id, week_of_year
 	FROM by_weeks
