@@ -1,20 +1,16 @@
-CREATE TABLE IF NOT EXISTS mart.f_customer_retention(
-	new_customers_count 			int8,
-	returning_customers_count 		int8,
-	refunded_customer_count 		int8,
-	period_name 					TEXT,
-	period_id 						int4,
-	item_id 						int4,
-	new_customers_revenue 			NUMERIC(14, 2),
-	returning_customers_revenue 	NUMERIC(14, 2),
-	customers_refunded 				int8
-);
+WITH get_week_id AS (
+	SELECT dc.week_of_year
+	FROM mart.f_sales fs
+		LEFT JOIN mart.d_calendar dc ON fs.date_id = dc.date_id
+	WHERE dc.date_actual = '{{ds}}')
+DELETE FROM mart.f_customer_retention fcr
+WHERE period_id = (SELECT MAX(week_of_year) FROM get_week_id);
 
 WITH by_weeks AS (
 	SELECT customer_id, item_id, status, payment_amount, week_of_year,
 		ROW_NUMBER() OVER(PARTITION BY week_of_year) row_num
-	FROM mart.f_sales_new fsn
-		LEFT JOIN mart.d_calendar dc ON fsn.date_id = dc.date_id
+	FROM mart.f_sales fs
+		LEFT JOIN mart.d_calendar dc ON fs.date_id = dc.date_id
 ), counter AS (
 	SELECT count(customer_id) AS count_c, customer_id, item_id, week_of_year
 	FROM by_weeks
@@ -22,7 +18,7 @@ WITH by_weeks AS (
 ), revenue AS (
 	SELECT customer_id, item_id, SUM(payment_amount) AS payment_amount, week_of_year,
 		ROW_NUMBER() OVER(PARTITION BY customer_id) AS by_customers
-	FROM mart.f_sales_new fsn
+	FROM mart.f_sales fsn
 		LEFT JOIN mart.d_calendar dc ON fsn.date_id = dc.date_id
 	GROUP BY customer_id, item_id, week_of_year
 )
